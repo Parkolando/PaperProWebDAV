@@ -1,0 +1,8 @@
+original/
+decoded/
+jadx/
+readable/
+tools/
+build/
+*.log
+*.p12
