@@ -59,7 +59,7 @@ PaperProKitchen의 어떤 이미지를 썼든, 이미 되어 있는 단계는 �
 | --- | --- | --- |
 | `PaperProKitchen_r13_2.zip` | [PaperProKitchen r13_2 릴리스](https://github.com/limerainne/PaperProKitchen/releases/tag/r13_2)의 첫 번째 첨부 파일 | ADB · fastboot 도구, USB 드라이버, 루트 이미지 |
 | `XposedInstaller_2.7_experimental1.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProCloud/releases/latest) | Xposed 프레임워크 |
-| `paper-cloud-1.1.0.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProCloud/releases/latest) | WebDAV 확장 |
+| `paper-cloud-1.1.0.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProCloud/releases/latest) | 클라우드 확장 |
 
 그리고 다음을 확인해 주세요.
 
