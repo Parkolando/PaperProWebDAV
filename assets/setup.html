@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>페이퍼 프로 클라우드 연결</title>
+<style>
+  :root { --fg: #111; --bg: #fff; --muted: #555; --line: #ccc; --accent: #111; --on-accent: #fff; --error: #b00020; --ok: #0a6b2d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #eee; --bg: #121212; --muted: #aaa; --line: #444; --accent: #eee; --on-accent: #111; --error: #ff6b81; --ok: #5fd38d; }
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: var(--fg); background: var(--bg);
+         max-width: 640px; margin: 0 auto; padding: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+  h1 { font-size: 1.35em; margin: 0.2em 0; }
+  h2 { font-size: 1.1em; margin-top: 1.8em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  label { display: block; margin-top: 14px; font-weight: 600; }
+  input, select, textarea { width: 100%; max-width: 100%; font-size: 16px; padding: 9px; margin-top: 4px;
+         border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  input[type=checkbox] { width: auto; margin-right: 6px; }
+  button, .button { display: inline-block; font-size: 16px; padding: 10px 16px; margin-top: 14px; border-radius: 6px;
+         border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); text-decoration: none; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--fg); padding: 6px 12px; margin: 0; }
+  button:disabled { opacity: 0.5; }
+  .help { font-size: 13px; color: var(--muted); margin: 3px 0 0; }
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 14px; }
+  .remote { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .error { color: var(--error); white-space: pre-wrap; }
+  .ok { color: var(--ok); }
+  ol { padding-left: 20px; margin: 0; }
+  li { margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>페이퍼 프로 클라우드 연결</h1>
+<p class="help">이 페이지는 페이퍼 프로에서 연결 화면을 열어 둔 동안에만 동작해요. 다 마치면 기기에서 [닫기]를 누르세요.</p>
+
+<h2>지금 연결된 서비스</h2>
+<div id="remotes">불러오는 중…</div>
+
+<h2>새 연결 추가</h2>
+<label for="type">서비스</label>
+<select id="type"><option>불러오는 중…</option></select>
+<p class="help" id="type-help"></p>
+
+<label for="name">이름</label>
+<input id="name" autocapitalize="off" autocomplete="off" spellcheck="false">
+<p class="help">기기의 클라우드 탭에 이 이름의 폴더로 보여요. 영문, 숫자, - _ . 만 쓸 수 있어요.</p>
+
+<div id="options"></div>
+<label><input type="checkbox" id="advanced">고급 옵션도 보기</label>
+
+<button id="create">연결 만들기</button>
+<p id="status" role="status"></p>
+
+<div id="question" class="box" hidden>
+  <strong>추가로 물어보는 것이 있어요</strong>
+  <p class="help">서비스가 직접 묻는 내용이라 영어로 나올 수 있어요. 잘 모르겠으면 미리 채워진 기본값 그대로 [다음]을 누르세요.</p>
+  <p id="question-error" class="error"></p>
+  <label for="answer" id="question-help" style="white-space: pre-wrap; font-weight: normal"></label>
+  <div id="answer-box"></div>
+  <button id="next">다음</button>
+</div>
+
+<div id="login" class="box" hidden>
+  <strong>로그인이 필요한 서비스예요</strong>
+  <ol>
+    <li><a id="auth-link" class="button" target="_blank" rel="noopener">로그인 열기</a><br>새 탭에서 로그인하고 [허용]을 눌러요.</li>
+    <li>로그인을 마치면 "사이트에 연결할 수 없음" 같은 오류 화면이 나와요. 정상이에요. 그 화면 주소창의 주소 <b>전체</b>를 복사해요.</li>
+    <li>이 탭으로 돌아와 아래 칸에 붙여 넣고 [완료]를 눌러요.</li>
+  </ol>
+  <label for="code">로그인 후 주소</label>
+  <textarea id="code" rows="3" placeholder="로그인 후 열린 페이지의 주소" autocapitalize="off" spellcheck="false"></textarea>
+  <button id="finish">완료</button>
+</div>
+
+<script>
+"use strict";
+const base = location.pathname.endsWith("/") ? location.pathname : location.pathname + "/";
+// Services people mostly use for books come first; the rest follow by name.
+const POPULAR = ["drive", "onedrive", "dropbox", "webdav", "sftp", "smb", "ftp", "s3", "pcloud", "box", "mega", "protondrive", "koofr", "yandex", "jottacloud", "http"];
+const HIDDEN = ["local", "memory"];
+let providers = [];
+
+const $ = (id) => document.getElementById(id);
+
+async function call(path, body) {
+  const response = await fetch(base + path, body === undefined ? {} : { method: "POST", body: JSON.stringify(body) });
+  const data = await response.json();
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+
+function show(message, kind) {
+  const status = $("status");
+  status.textContent = message;
+  status.className = kind || "";
+}
+
+async function loadRemotes() {
+  const box = $("remotes");
+  try {
+    const remotes = await call("remotes");
+    box.textContent = remotes.length ? "" : "아직 없어요.";
+    for (const remote of remotes) {
+      const row = document.createElement("div");
+      row.className = "remote";
+      const label = document.createElement("span");
+      label.textContent = remote.name + " · " + remote.type;
+      const remove = document.createElement("button");
+      remove.className = "secondary";
+      remove.textContent = "삭제";
+      remove.onclick = async () => {
+        if (!confirm(remote.name + " 연결을 삭제할까요? 이미 받은 책은 기기에 그대로 남아요.")) return;
+        try { await call("delete", { name: remote.name }); loadRemotes(); } catch (error) { show(error.message, "error"); }
+      };
+      row.append(label, remove);
+      box.append(row);
+    }
+  } catch (error) {
+    box.textContent = "불러오지 못했어요: " + error.message;
+  }
+}
+
+function firstLine(text) { return (text || "").split("\n")[0]; }
+
+function matchesProvider(spec, value) {
+  if (!spec) return true;
+  const negate = spec.startsWith("!");
+  const hit = spec.replace("!", "").split(",").includes(value);
+  return negate ? !hit : hit;
+}
+
+function control(option) {
+  const id = "opt-" + option.Name;
+  if (option.Examples && option.Examples.length && option.Exclusive) {
+    const select = document.createElement("select");
+    select.append(new Option("기본값" + (option.DefaultStr ? " (" + option.DefaultStr + ")" : ""), ""));
+    for (const example of option.Examples) select.append(new Option(example.Value + (example.Help ? " — " + firstLine(example.Help) : ""), example.Value));
+    select.id = id;
+    return select;
+  }
+  if (option.Type === "bool") {
+    const select = document.createElement("select");
+    select.append(new Option("기본값 (" + (option.DefaultStr || "false") + ")", ""), new Option("true", "true"), new Option("false", "false"));
+    select.id = id;
+    return select;
+  }
+  const input = document.createElement("input");
+  input.id = id;
+  input.type = option.IsPassword ? "password" : "text";
+  input.autocapitalize = "off";
+  input.autocomplete = option.IsPassword ? "new-password" : "off";
+  input.spellcheck = false;
+  if (option.DefaultStr) input.placeholder = option.DefaultStr;
+  if (option.Examples && option.Examples.length) {
+    const list = document.createElement("datalist");
+    list.id = id + "-list";
+    for (const example of option.Examples) list.append(new Option(firstLine(example.Help), example.Value));
+    input.setAttribute("list", list.id);
+    setTimeout(() => input.after(list));
+  }
+  return input;
+}
+
+function currentProvider() { return providers.find((p) => p.Name === $("type").value); }
+
+function renderOptions() {
+  const provider = currentProvider();
+  const box = $("options");
+  const kept = {};
+  for (const field of box.querySelectorAll("input, select")) kept[field.id] = field.value;
+  box.textContent = "";
+  if (!provider) return;
+  $("type-help").textContent = firstLine(provider.Description);
+  const chosen = kept["opt-provider"] || "";
+  for (const option of provider.Options || []) {
+    if (option.Hide || (option.Advanced && !$("advanced").checked)) continue;
+    if (!matchesProvider(option.Provider, chosen)) continue;
+    const label = document.createElement("label");
+    label.htmlFor = "opt-" + option.Name;
+    label.textContent = option.Name + (option.Required ? " *" : "");
+    const field = control(option);
+    if (kept[field.id] !== undefined) field.value = kept[field.id];
+    if (option.Name === "provider") field.onchange = renderOptions;
+    const help = document.createElement("p");
+    help.className = "help";
+    help.textContent = firstLine(option.Help);
+    box.append(label, field, help);
+  }
+}
+
+async function loadProviders() {
+  providers = (await call("providers")).filter((p) => !HIDDEN.includes(p.Name));
+  const rank = (p) => { const i = POPULAR.indexOf(p.Name); return i < 0 ? POPULAR.length : i; };
+  providers.sort((a, b) => rank(a) - rank(b) || a.Description.localeCompare(b.Description));
+  const select = $("type");
+  select.textContent = "";
+  for (const provider of providers) select.append(new Option(firstLine(provider.Description) + " (" + provider.Name + ")", provider.Name));
+  select.onchange = () => { $("name").value = select.value; renderOptions(); };
+  select.onchange();
+}
+
+$("advanced").onchange = renderOptions;
+
+let asked = null; // the question rclone is waiting on
+
+// What rclone wants next: a login on this phone, an answer to a question, or nothing (done).
+function handle(result, name) {
+  $("login").hidden = true;
+  $("question").hidden = true;
+  if (result.auth) {
+    $("auth-link").href = result.auth;
+    $("code").value = "";
+    $("login").hidden = false;
+    show("아래 순서대로 로그인을 마쳐 주세요.");
+    $("login").scrollIntoView({ behavior: "smooth" });
+  } else if (result.question) {
+    ask(result.question, result.error);
+  } else {
+    show("연결을 만들었어요. 기기에서 [닫기]를 누르면 클라우드 탭에 보여요.", "ok");
+    loadRemotes();
+  }
+}
+
+function ask(option, error) {
+  asked = option;
+  $("question-error").textContent = error || "";
+  $("question-help").textContent = option.Help || option.Name;
+  const box = $("answer-box");
+  box.textContent = "";
+  let field;
+  if (option.Examples && option.Examples.length) {
+    field = document.createElement("select");
+    for (const example of option.Examples) field.append(new Option(example.Value + (example.Help && example.Help !== example.Value ? " — " + firstLine(example.Help) : ""), example.Value));
+    if (!option.Exclusive) {
+      field.append(new Option("직접 입력…", "\u0000"));
+      field.onchange = () => { other.hidden = field.value !== "\u0000"; };
+    }
+  } else if (option.Type === "bool") {
+    field = document.createElement("select");
+    field.append(new Option("예 (true)", "true"), new Option("아니요 (false)", "false"));
+  } else {
+    field = document.createElement("input");
+    field.type = option.IsPassword ? "password" : "text";
+    field.autocapitalize = "off";
+    field.autocomplete = "off";
+    field.spellcheck = false;
+  }
+  field.id = "answer";
+  const value = option.ValueStr || option.DefaultStr || "";
+  if (value) field.value = value;
+  const other = document.createElement("input");
+  other.id = "answer-other";
+  other.hidden = true;
+  other.autocapitalize = "off";
+  box.append(field, other);
+  $("question").hidden = false;
+  show("아래 질문에 답해 주세요.");
+  $("question").scrollIntoView({ behavior: "smooth" });
+  field.focus();
+}
+
+$("next").onclick = async () => {
+  let value = $("answer").value;
+  if (value === "\u0000") value = $("answer-other").value;
+  $("next").disabled = true;
+  show("보내는 중이에요…");
+  try {
+    handle(await call("answer", { value: value, password: !!(asked && asked.IsPassword) }));
+  } catch (error) {
+    show(error.message, "error");
+  } finally {
+    $("next").disabled = false;
+  }
+};
+
+$("create").onclick = async () => {
+  const provider = currentProvider();
+  const name = $("name").value.trim();
+  if (!/^[A-Za-z0-9_.-]+$/.test(name)) { show("이름은 영문, 숫자, - _ . 만 쓸 수 있어요.", "error"); return; }
+  const options = {};
+  for (const field of $("options").querySelectorAll("input, select")) {
+    if (field.id.startsWith("opt-") && field.value !== "") options[field.id.slice(4)] = field.value;
+  }
+  $("create").disabled = true;
+  show("연결을 만드는 중이에요… (기기에서 몇 초 걸려요)");
+  try {
+    handle(await call("create", { name: name, type: provider.Name, options: options }));
+  } catch (error) {
+    show(error.message, "error");
+  } finally {
+    $("create").disabled = false;
+  }
+};
+
+$("finish").onclick = async () => {
+  const url = $("code").value.trim();
+  if (!url) { show("로그인 후 열린 페이지의 주소를 붙여 넣어 주세요.", "error"); return; }
+  $("finish").disabled = true;
+  show("로그인을 마무리하는 중이에요…");
+  try {
+    handle(await call("code", { url: url }));
+  } catch (error) {
+    show(error.message, "error");
+  } finally {
+    $("finish").disabled = false;
+  }
+};
+
+loadRemotes();
+loadProviders().catch((error) => show("서비스 목록을 불러오지 못했어요: " + error.message, "error"));
+</script>
+</body>
+</html>

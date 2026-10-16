@@ -1,13 +1,14 @@
-# 리디 페이퍼 프로 WebDAV 확장
+# 리디 페이퍼 프로 클라우드 확장
 
-리디 페이퍼 프로의 기본 앱(리디 서재)에 **WebDAV 탭**을 더해 주는 Xposed 모듈이에요.
-NAS나 개인 서버에 둔 책을 기기에서 바로 골라 받고, 리디의 원래 책장과 뷰어로 읽을 수 있어요.
+리디 페이퍼 프로의 기본 앱(리디 서재)에 **클라우드 탭**을 더해 주는 Xposed 모듈이에요.
+NAS의 WebDAV 서버는 물론, [rclone](https://rclone.org)을 통해 Google Drive · OneDrive · Dropbox · SMB · SFTP · Proton Drive 같은 70여 가지 서비스에 둔 책을 기기에서 바로 골라 받고, 리디의 원래 책장과 뷰어로 읽을 수 있어요.
 
 > 리디(RIDI)와는 관계없는 비공식 확장이에요. 기기 소프트웨어를 고치는 작업이 필요하기 때문에, 아래 [꼭 읽어 주세요](#꼭-읽어-주세요)를 먼저 확인해 주세요.
 
 ## 무엇이 달라지나요
 
-- 상단 메뉴(내 서재 · 구매 목록 · 서점 · 셀렉트) 옆에 **WebDAV** 탭이 생겨요.
+- 상단 메뉴(내 서재 · 구매 목록 · 서점 · 셀렉트) 옆에 **클라우드** 탭이 생겨요.
+- WebDAV 서버에 바로 붙거나, rclone으로 여러 서비스를 한꺼번에 붙일 수 있어요. 서비스 추가는 **휴대폰으로 QR을 찍어** 해요.
 - 서버 폴더를 리디 책장과 같은 모양으로 둘러보고, 책을 누르면 받아서 바로 열어요.
 - 받는 동안에는 리디 앱이 원래 쓰는 **책별 다운로드 표시**(대기 · 진행률)가 표지 위에 나와요.
 - 폴더마다 **전체 다운로드** 버튼이 있어요. 받는 중에는 **전체 취소**로 바뀌어요.
@@ -45,20 +46,20 @@ PaperProKitchen의 어떤 이미지를 썼든, 이미 되어 있는 단계는 �
 | 지금 기기 상태 | 시작할 곳 |
 | --- | --- |
 | ADB와 루트가 이미 있어요 (올인원 · 라이트 · basic 이미지, 리파티션 도구) | 1단계를 건너뛰고 [2단계](#2단계-xposed-프레임워크-설치)부터 해요. |
-| Xposed 프레임워크까지 설치되어 있어요 (올인원 이미지는 함께 설치돼요) | [3단계](#3단계-webdav-확장-설치)만 하면 돼요. |
+| Xposed 프레임워크까지 설치되어 있어요 (올인원 이미지는 함께 설치돼요) | [3단계](#3단계-클라우드-확장-설치)만 하면 돼요. |
 | ADB만 열려 있고 루트가 없어요 ("ADB만" 이미지) | [1단계](#1단계-adb와-루트-열기)부터 해요. Xposed 프레임워크를 설치하려면 루트가 필요하기 때문이에요. |
 
 - ADB는 PC에서 `adb devices`를 입력했을 때 시리얼 번호와 `device`가 나오면 열려 있는 거예요.
 - Xposed 프레임워크는 Xposed Installer(앱 서랍이 있다면 거기서 열 수 있어요)의 [프레임워크] 화면에서 `현재 시스템` 칸에 버전 숫자가 보이면 설치되어 있는 거예요. 숫자가 보이지 않거나 Xposed Installer가 없다면 2단계부터 해 주세요.
-- 건너뛰는 단계에서 쓰는 파일은 받지 않아도 돼요. 3단계만 한다면 `paper-webdav-1.0.0.apk` 하나면 충분해요.
+- 건너뛰는 단계에서 쓰는 파일은 받지 않아도 돼요. 3단계만 한다면 `paper-cloud-1.1.0.apk` 하나면 충분해요.
 
 ### 준비물
 
 | 파일 | 받는 곳 | 쓰는 곳 |
 | --- | --- | --- |
 | `PaperProKitchen_r13_2.zip` | [PaperProKitchen r13_2 릴리스](https://github.com/limerainne/PaperProKitchen/releases/tag/r13_2)의 첫 번째 첨부 파일 | ADB · fastboot 도구, USB 드라이버, 루트 이미지 |
-| `XposedInstaller_2.7_experimental1.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProWebDAV/releases/latest) | Xposed 프레임워크 |
-| `paper-webdav-1.0.0.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProWebDAV/releases/latest) | WebDAV 확장 |
+| `XposedInstaller_2.7_experimental1.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProCloud/releases/latest) | Xposed 프레임워크 |
+| `paper-cloud-1.1.0.apk` | [이 저장소의 릴리스](https://github.com/Parkolando/PaperProCloud/releases/latest) | WebDAV 확장 |
 
 그리고 다음을 확인해 주세요.
 
@@ -82,7 +83,7 @@ Git이나 개발 도구는 필요 없어요. 이 저장소를 통째로 내려�
 2. **압축을 풀어요.** `다운로드` 폴더에서 `PaperProKitchen_r13_2.zip`을 오른쪽 클릭하고 [압축 풀기...]를 눌러요. 풀 위치를 `C:\paperpro`로 바꾸고 [압축 풀기]를 눌러요.
    - 꼭 이 위치가 아니어도 되지만, 이름에 한글이나 빈칸이 없는 짧은 경로를 권해요. 명령을 입력할 때 실수할 일이 줄어들기 때문이에요.
    - 압축 파일을 더블클릭해서 안을 들여다보는 것만으로는 안 돼요. 반드시 풀어 주세요.
-3. **APK 두 개를 같은 폴더로 옮겨요.** `XposedInstaller_2.7_experimental1.apk`와 `paper-webdav-1.0.0.apk`를 `C:\paperpro` 폴더로 끌어다 놓아요. 다 하고 나면 폴더가 이렇게 보여요.
+3. **APK 두 개를 같은 폴더로 옮겨요.** `XposedInstaller_2.7_experimental1.apk`와 `paper-cloud-1.1.0.apk`를 `C:\paperpro` 폴더로 끌어다 놓아요. 다 하고 나면 폴더가 이렇게 보여요.
    ```text
    C:\paperpro
    ├─ bin
@@ -91,7 +92,7 @@ Git이나 개발 도구는 필요 없어요. 이 저장소를 통째로 내려�
    ├─ _start_cmd.cmd
    ├─ _add_vendor_to_adb_usb_ini.cmd
    ├─ XposedInstaller_2.7_experimental1.apk
-   ├─ paper-webdav-1.0.0.apk
+   ├─ paper-cloud-1.1.0.apk
    └─ (그 밖의 파일들)
    ```
    파일 이름 끝의 `.cmd`, `.apk`가 보이지 않을 수 있어요. Windows가 확장자를 숨겨서 그런 것이니 그대로 두면 돼요.
@@ -154,32 +155,39 @@ basic 이미지는 ADB를 켜고 SuperSU(루트)를 설치하는 것 말고도 �
 
 다시 켜진 뒤 같은 화면을 열었을 때 `현재 시스템` 칸에 `app_process 58`, `XposedBridge.jar 54`가 보이면 잘 설치된 거예요.
 
-### 3단계. WebDAV 확장 설치
+### 3단계. 클라우드 확장 설치
 
 1. **확장을 설치하고 Xposed Installer를 다시 열어요.**
    ```cmd
-   adb install paper-webdav-1.0.0.apk
+   adb install paper-cloud-1.1.0.apk
    adb shell am start -n de.robv.android.xposed.installer/.WelcomeActivity
    ```
    앱 서랍이 있는 기기라면 여기서도 둘째 줄 대신 앱 서랍에서 Xposed Installer를 열면 돼요.
-2. **[모듈 관리]**에 들어가 **리디 WebDAV**에 체크해요. 체크해야 모듈이 켜지기 때문이에요.
+2. **[모듈 관리]**에 들어가 **리디 클라우드**에 체크해요. 체크해야 모듈이 켜지기 때문이에요.
 3. **기기를 다시 켜요.** Xposed 모듈은 재부팅해야 적용돼요.
    ```cmd
    adb reboot
    ```
 
-다시 켜졌을 때 상단 메뉴에 **WebDAV**가 보이면 설치가 끝났어요.
+다시 켜졌을 때 상단 메뉴에 **클라우드**가 보이면 설치가 끝났어요.
 
 ## 사용하기
 
-### 서버 연결
+### 연결 방법 고르기
 
-WebDAV 탭을 처음 누르면 설정 창이 떠요. 나중에는 **설정 > 파일 관리 > WebDAV 설정**에서 바꿀 수 있어요.
+클라우드 탭을 처음 누르면 설정 창이 떠요. 나중에는 **설정 > 파일 관리 > 클라우드 설정**에서 바꿀 수 있어요. 두 가지 중 하나를 골라요.
+
+| 방법 | 이럴 때 골라요 |
+| --- | --- |
+| **WebDAV 서버** | NAS 등 WebDAV 서버 하나만 쓸 때. 가볍고 따로 설치할 것이 없어요. |
+| **rclone (여러 서비스)** | Google Drive, OneDrive, Dropbox, SMB, SFTP, Proton Drive 등을 쓰거나 여러 곳을 한꺼번에 붙일 때. |
+
+### WebDAV 서버에 연결하기
 
 | 항목 | 내용 |
 | --- | --- |
-| 폴더 주소 | 책이 들어 있는 폴더 주소예요. 예: `https://webdav.example.com:5006/books/` |
-| 사용자 이름 · 비밀번호 | 서버 계정이에요. 로그인이 필요 없는 서버라면 비워 두세요. |
+| 서버 주소 | 책이 들어 있는 폴더 주소예요. 예: `https://webdav.example.com/books/` |
+| 아이디 · 비밀번호 | 서버 계정이에요. 로그인이 필요 없는 서버라면 비워 두세요. |
 
 서버는 다음 조건을 만족해야 해요.
 
@@ -190,6 +198,24 @@ WebDAV 탭을 처음 누르면 설정 창이 떠요. 나중에는 **설정 > 파
 - 주소가 다른 곳으로 넘어가는(리디렉션) 서버라면 **최종 주소**를 입력해 주세요.
 
 비밀번호는 기기의 키 저장소에 든 키로 암호화해서 저장해요. 설정 파일만 들여다봐서는 알 수 없어요. 다만 루팅한 기기에서 루트 권한을 가진 다른 앱까지 막아 주지는 못해요.
+
+### rclone으로 여러 서비스 연결하기
+
+1. **rclone (여러 서비스)**를 고르고 **[휴대폰으로 연결 관리 (QR)]**를 눌러요. 처음이라면 rclone(약 30MB)을 내려받아 설치해요. 설치하면 기기에서 약 80MB를 차지해요.
+2. 기기에 QR 코드가 떠요. 휴대폰을 **같은 Wi-Fi**에 연결하고 카메라로 QR을 찍으면 연결 페이지가 열려요. 기기 화면이 열려 있는 동안에만 열리는 페이지예요.
+3. 연결 페이지에서 **서비스**를 고르고 **이름**을 정한 뒤, 필요한 정보(서버 주소, 아이디, 비밀번호 등)를 휴대폰 키보드로 입력하고 **[연결 만들기]**를 눌러요.
+4. **로그인이 필요한 서비스**(Google Drive, OneDrive, Dropbox 등)는 이렇게 해요.
+   - **[로그인 열기]**를 눌러 로그인하고 허용해요.
+   - 로그인을 마치면 "사이트에 연결할 수 없음" 같은 오류 화면이 나와요. **정상이에요.** 그 화면 주소창의 주소 전체를 복사해요.
+   - 연결 페이지로 돌아가 **[로그인 후 주소]** 칸에 붙여 넣고 **[완료]**를 눌러요.
+5. 서비스가 **더 물어보는 것**(인증번호, 사용할 드라이브 등)이 있으면 연결 페이지에 질문이 떠요. 답하고 **[다음]**을 눌러요. 잘 모르겠으면 미리 채워진 기본값 그대로 두면 돼요.
+6. 다 했으면 기기에서 **[닫기]**, 설정 창에서 **[저장]**을 눌러요. 연결마다 클라우드 탭에 같은 이름의 폴더가 생겨요.
+
+연결 페이지의 **지금 연결된 서비스**에서 연결을 지울 수 있어요. 지워도 이미 받은 책은 서재에 남아요.
+
+시험해 본 서비스는 Google Drive, OneDrive, Dropbox, SMB, Proton Drive, WebDAV예요. 그 밖의 서비스도 rclone이 지원하는 방식 그대로 쓸 수 있어요. 서비스별 입력 항목은 [rclone 문서](https://rclone.org/overview/)를 참고하세요.
+
+> **Google Drive를 쓴다면:** rclone이 함께 쓰는 Google 로그인 정보가 2026년 중에 막힐 예정이에요. 연결을 만들 때 이 내용을 묻는 질문이 나와요. 오래 쓰려면 [자기 Google 클라이언트 ID](https://rclone.org/drive/#making-your-own-client-id)를 만들어 `client_id`, `client_secret` 칸에 넣는 걸 권해요.
 
 ### 책 받기
 
@@ -234,7 +260,7 @@ books/
 새 버전 APK를 받아 덮어 설치하고 다시 켜면 돼요.
 
 ```cmd
-adb install -r paper-webdav-x.y.z.apk
+adb install -r paper-cloud-x.y.z.apk
 adb reboot
 ```
 
@@ -244,12 +270,14 @@ adb reboot
 
 | 증상 | 확인할 것 |
 | --- | --- |
-| WebDAV 탭이 안 보여요 | Xposed Installer의 [프레임워크]에 버전 숫자가 보이는지, [모듈 관리]에 체크했는지, 그 뒤에 재부팅했는지, 소프트웨어가 1.6.5인지 확인해 주세요. |
+| 클라우드 탭이 안 보여요 | Xposed Installer의 [프레임워크]에 버전 숫자가 보이는지, [모듈 관리]에 체크했는지, 그 뒤에 재부팅했는지, 소프트웨어가 1.6.5인지 확인해 주세요. |
 | HTTPS 인증서 또는 TLS 연결 오류 | 기기의 날짜와 시간이 맞는지, 서버 인증서가 유효한지 확인해 주세요. |
 | 접근이 거부되었습니다 (401/403) | 사용자 이름과 비밀번호, 그 계정의 폴더 권한을 확인해 주세요. |
 | http:// 연결은 내부망(사설 IP) 서버에서만 허용됩니다 | `http://` 주소가 내부망 주소가 아니에요. 바깥에서 접속하는 서버라면 `https://` 주소를 입력해 주세요. |
 | 서버가 다른 주소로 이동시킵니다 | 브라우저로 열었을 때 최종적으로 표시되는 주소를 입력해 주세요. |
 | 폴더 목록이 너무 큽니다 | 한 폴더에는 5,000개까지 표시해요. 하위 폴더로 나눠 주세요. |
+| rclone을 받지 못했어요 | Wi-Fi가 연결되어 있는지 확인하고 다시 시도해 주세요. 인터넷이 안 되면 PC에서 [rclone 릴리스](https://github.com/Parkolando/PaperProCloud/releases/tag/rclone-1.75.2-android)의 `rclone-armv7.gz`를 받아 기기 내부 저장소의 `PaperProCloud` 폴더에 넣은 뒤 다시 시도하면, 그 파일로 설치해요. |
+| 연결 페이지가 휴대폰에서 안 열려요 | 휴대폰과 기기가 같은 Wi-Fi에 있는지, 기기에서 연결 화면이 열려 있는지 확인해 주세요. 닫으면 페이지도 닫혀요. |
 | 표지가 글자로만 나와요 | EPUB 안에 표지 정보가 없는 파일이에요. 읽는 데에는 문제가 없어요. |
 | `adb devices`가 비어 있어요 | `C:\paperpro` 폴더의 `_add_vendor_to_adb_usb_ini.cmd`를 더블클릭해서 실행하고, 케이블과 포트를 바꿔 보세요. |
 | `'adb'은(는) 내부 또는 외부 명령 ... 이 아닙니다` | `_start_cmd.cmd`로 연 창이 아니에요. 창을 닫고 `_start_cmd.cmd`를 더블클릭해서 다시 열어 주세요. |
@@ -273,7 +301,7 @@ adb logcat -d | findstr PaperWebDAV
 
 ## 순정으로 되돌리기 (벽돌 대비)
 
-부팅이 안 되거나 처음 상태로 돌아가고 싶을 때를 위해 **1.6.5 순정 펌웨어**를 [`firmware-1.6.5P` 릴리스](https://github.com/Parkolando/PaperProWebDAV/releases/tag/firmware-1.6.5P)에 올려 두었어요. 공식 업데이트를 설치한 직후의 파티션을 그대로 떠 낸 파일이에요.
+부팅이 안 되거나 처음 상태로 돌아가고 싶을 때를 위해 **1.6.5 순정 펌웨어**를 [`firmware-1.6.5P` 릴리스](https://github.com/Parkolando/PaperProCloud/releases/tag/firmware-1.6.5P)에 올려 두었어요. 공식 업데이트를 설치한 직후의 파티션을 그대로 떠 낸 파일이에요.
 
 | 파일 | 내용 | SHA-256 |
 | --- | --- | --- |
@@ -310,12 +338,16 @@ adb logcat -d | findstr PaperWebDAV
 - 서버에서 파일이 바뀌어도 이미 받은 책을 자동으로 다시 받지는 않아요.
 - 받기 전에는 표지 대신 파일 이름이 보여요. 표지는 책 안에 들어 있어서 받아야 알 수 있기 때문이에요.
 - 저장 공간이 모자라면 받지 않고 실패로 표시해요. 받는 동안에는 화면이 꺼지지 않게 해 둬요.
+- rclone은 클라우드 탭을 쓰는 동안 뒤에서 돌아요(메모리 약 30MB). 탭을 떠나 3분이 지나면 저절로 멈춰요.
+- WebDAV 직접 연결과 rclone은 같은 서버라도 주소가 달라서, 연결 방식을 바꾸면 이미 받은 책도 다시 받게 돼요.
 
 ## 만든 방법과 고마운 분들
 
 - 리디 앱 파일은 고치지 않아요. Xposed로 앱이 실행될 때 기능을 덧붙이고, 책장 · 가져오기 · 뷰어는 리디 앱의 것을 그대로 불러 써요.
 - 루팅 도구와 문서: [PaperProKitchen](https://github.com/limerainne/PaperProKitchen) (limerainne 님)
 - [Xposed Framework · Xposed Installer](https://github.com/rovo89/XposedInstaller) (rovo89 님, Apache License 2.0)
+- [rclone](https://rclone.org) (Nick Craig-Wood 님과 기여자들, MIT 라이선스)
+- QR 코드: [QR Code generator library](https://github.com/nayuki/QR-Code-generator) (Project Nayuki, MIT 라이선스)
 
 함께 배포하는 다른 프로젝트의 파일과 라이선스는 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)에 정리했어요.
 

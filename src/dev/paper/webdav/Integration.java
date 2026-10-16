@@ -3,6 +3,10 @@ package dev.paper.webdav;
 import android.app.*;
 import android.content.*;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.StateListDrawable;
 import android.graphics.Color;
 import android.os.*;
 import android.security.KeyPairGeneratorSpec;
@@ -205,15 +209,16 @@ public final class Integration {
             browser.downloads.shutdownNow();
         }
         browsers.remove(activity);
+        if (browsers.isEmpty()) Rclone.stop(app);
     }
 
-    /** Shows the module's settings entries on the tab they belong to: WebDAV on top of 파일 관리, reboot at the end of 전원/보안. */
+    /** Shows the module's settings entries on the tab they belong to: cloud on top of 파일 관리, reboot at the end of 전원/보안. */
     public static void settings(ListView list, String category) {
         LinearLayout panel = (LinearLayout) list.getParent();
         final Context context = list.getContext();
         View webdav = panel.findViewWithTag("paper-webdav-settings");
         if (webdav == null) {
-            webdav = row(context, "WebDAV 설정", "서버 주소와 계정", "main_actionbar_icon_settings", new View.OnClickListener() {
+            webdav = row(context, "클라우드 설정", "WebDAV 서버 · rclone 연결", "main_actionbar_icon_settings", new View.OnClickListener() {
                 public void onClick(View v) { editSettings(context, null); }
             });
             webdav.setTag("paper-webdav-settings");
@@ -266,31 +271,92 @@ public final class Integration {
         });
     }
 
+    /** Whether the cloud tab goes through rclone (many services) instead of straight to one WebDAV server. */
+    private static boolean rclone() { return "rclone".equals(prefs().getString("mode", "")); }
+
+    private static final String LOCAL = "http://127.0.0.1:" + Rclone.PORT + "/";
+
+    /** Password of the local rclone server. It only listens on 127.0.0.1, but other apps on the device could try it. */
+    private static String rclonePassword() {
+        String saved = prefs().getString("rclone-pass", null);
+        if (saved == null) {
+            byte[] random = new byte[18];
+            new java.security.SecureRandom().nextBytes(random);
+            saved = android.util.Base64.encodeToString(random, android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP);
+            prefs().edit().putString("rclone-pass", saved).commit();
+        }
+        return saved;
+    }
+
     private static void editSettings(final Context context, final Runnable saved) {
         final LinearLayout fields = new LinearLayout(context);
         fields.setOrientation(LinearLayout.VERTICAL);
         int padding = dp(context, 16);
         fields.setPadding(padding, padding, padding, padding);
-        final EditText url = field(context, fields, "폴더 주소 (https://, 내부망은 http://도 가능)", prefs().getString("url", ""), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        final EditText user = field(context, fields, "사용자 이름", prefs().getString("user", ""), InputType.TYPE_CLASS_TEXT);
-        final EditText password = field(context, fields, "비밀번호", password(), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        final RadioGroup modes = new RadioGroup(context);
+        RadioButton direct = new RadioButton(context), cloud = new RadioButton(context);
+        direct.setId(1);
+        direct.setText("WebDAV 서버");
+        cloud.setId(2);
+        cloud.setText("rclone (여러 서비스)");
+        for (RadioButton choice : new RadioButton[]{direct, cloud}) {
+            choice.setButtonDrawable(check(context));
+            choice.setPadding(dp(context, 8), dp(context, 6), 0, dp(context, 6));
+            modes.addView(choice);
+        }
+        fields.addView(modes);
+        final LinearLayout webdav = new LinearLayout(context);
+        webdav.setOrientation(LinearLayout.VERTICAL);
+        fields.addView(webdav);
+        final EditText url = field(context, webdav, "서버 주소", prefs().getString("url", ""), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        url.setHint("https://example.com/books/");
+        final EditText user = field(context, webdav, "아이디", prefs().getString("user", ""), InputType.TYPE_CLASS_TEXT);
+        final EditText password = field(context, webdav, "비밀번호", password(), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        final LinearLayout services = new LinearLayout(context);
+        services.setOrientation(LinearLayout.VERTICAL);
+        fields.addView(services);
+        final TextView summary = new TextView(context);
+        services.addView(summary);
+        Button manage = new Button(context);
+        manage.setText("휴대폰으로 연결 관리 (QR)");
+        services.addView(manage, new LinearLayout.LayoutParams(-1, -2));
+        manage.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { manage((Activity) context, summary); }
+        });
+        modes.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            public void onCheckedChanged(RadioGroup group, int checked) {
+                webdav.setVisibility(checked == 1 ? View.VISIBLE : View.GONE);
+                services.setVisibility(checked == 2 ? View.VISIBLE : View.GONE);
+                if (checked == 2) describe((Activity) context, summary);
+            }
+        });
+        modes.check(rclone() ? 2 : 1);
         ScrollView scroll = new ScrollView(context);
         scroll.addView(fields);
-        final AlertDialog dialog = new AlertDialog.Builder(context).setTitle("WebDAV 설정").setView(scroll)
+        final AlertDialog dialog = new AlertDialog.Builder(context).setTitle("클라우드 설정").setView(scroll)
                 .setNegativeButton("취소", null).setPositiveButton("저장", null).create();
         dialog.setOnShowListener(new DialogInterface.OnShowListener() {
             public void onShow(DialogInterface ignored) {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
                         try {
-                            HttpUrl checked = DavClient.rootUrl(url.getText().toString());
-                            if (user.getText().toString().contains(":")) throw new IOException("사용자 이름에는 :을 사용할 수 없습니다.");
-                            String entered = password.getText().toString(), sealed;
-                            try { sealed = seal(entered); }
-                            catch (Exception error) { throw new IOException("비밀번호를 암호화해 저장할 수 없습니다. 245바이트보다 짧은지 확인하세요."); }
-                            if (!prefs().edit().putString("url", checked.toString()).putString("user", user.getText().toString())
-                                    .putString("secret", sealed).remove("password").commit()) throw new IOException("설정을 저장할 수 없습니다.");
-                            Integration.password = entered;
+                            if (modes.getCheckedRadioButtonId() == 2) {
+                                if (!Rclone.installed(app)) {
+                                    summary.setText("먼저 rclone을 설치하고 연결을 추가하세요.");
+                                    return;
+                                }
+                                if (!prefs().edit().putString("mode", "rclone").commit()) throw new IOException("설정을 저장할 수 없습니다.");
+                            } else {
+                                HttpUrl checked = DavClient.rootUrl(url.getText().toString());
+                                if (user.getText().toString().contains(":")) throw new IOException("사용자 이름에는 :을 사용할 수 없습니다.");
+                                String entered = password.getText().toString(), sealed;
+                                try { sealed = seal(entered); }
+                                catch (Exception error) { throw new IOException("비밀번호를 암호화해 저장할 수 없습니다. 245바이트보다 짧은지 확인하세요."); }
+                                if (!prefs().edit().putString("mode", "webdav").putString("url", checked.toString()).putString("user", user.getText().toString())
+                                        .putString("secret", sealed).remove("password").commit()) throw new IOException("설정을 저장할 수 없습니다.");
+                                Integration.password = entered;
+                                Rclone.stop(app);
+                            }
                             for (WeakReference<Browser> reference : browsers.values()) {
                                 Browser browser = reference.get();
                                 if (browser != null) { browser.cancel(); browser.stop(null); browser.folder = null; browser.hide(); }
@@ -303,7 +369,99 @@ public final class Integration {
             }
         });
         dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN); // keyboard only when a field is tapped
         dialog.show();
+    }
+
+    /** Shows which rclone remotes exist. Listing runs the rclone binary, so it happens off the UI thread. */
+    private static void describe(final Activity activity, final TextView summary) {
+        if (!Rclone.installed(app)) {
+            summary.setText("rclone 설치가 필요해요 (약 30MB)");
+            return;
+        }
+        summary.setText("불러오는 중…");
+        new Thread("paper-webdav-remotes") {
+            public void run() {
+                String text;
+                try {
+                    List<String> remotes = Rclone.remotes(app);
+                    text = remotes.isEmpty() ? "연결 없음" : "연결: " + android.text.TextUtils.join(", ", remotes);
+                } catch (IOException error) { text = error.getMessage(); }
+                final String shown = text;
+                activity.runOnUiThread(new Runnable() { public void run() { summary.setText(shown); } });
+            }
+        }.start();
+    }
+
+    /** Opens the phone setup (QR code), installing rclone first when needed. */
+    private static void manage(final Activity activity, final TextView summary) {
+        final Runnable open = new Runnable() {
+            public void run() {
+                Setup.show(activity, new Runnable() {
+                    public void run() {
+                        Rclone.stop(app); // the next listing starts it again with the changed remotes
+                        describe(activity, summary);
+                    }
+                });
+            }
+        };
+        if (Rclone.installed(app)) { open.run(); return; }
+        new AlertDialog.Builder(activity).setTitle("rclone 설치")
+                .setMessage("rclone(약 30MB)을 내려받아 설치할까요?\n설치하면 약 80MB를 차지해요.")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("받기", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) { install(activity, open); }
+                }).show();
+    }
+
+    private static void install(final Activity activity, final Runnable done) {
+        final ProgressDialog progress = new ProgressDialog(activity);
+        progress.setTitle("rclone 받는 중");
+        progress.setMessage("받은 뒤 설치까지 조금 더 걸려요.");
+        progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        progress.setMax(100);
+        progress.setCancelable(false);
+        progress.show();
+        activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        new Thread("paper-webdav-rclone-install") {
+            public void run() {
+                String failure = null;
+                try {
+                    Rclone.install(app, new DavClient.Progress() {
+                        int shown = -1;
+                        public void update(long done, long total) {
+                            final int percent = total > 0 ? (int) (done * 100 / total) : 0;
+                            if (shown >= 0 && percent / 5 == shown / 5) return; // e-ink: redraw in 5% steps
+                            shown = percent;
+                            activity.runOnUiThread(new Runnable() { public void run() { progress.setProgress(percent); } });
+                        }
+                    });
+                } catch (IOException error) { failure = error.getMessage() == null ? "rclone을 받지 못했습니다." : error.getMessage(); }
+                final String shown = failure;
+                activity.runOnUiThread(new Runnable() {
+                    public void run() {
+                        progress.dismiss();
+                        activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        if (shown == null) done.run();
+                        else new AlertDialog.Builder(activity).setTitle("rclone 설치 실패").setMessage(shown).setPositiveButton("확인", null).show();
+                    }
+                });
+            }
+        }.start();
+    }
+
+    /** Ridi's own round check mark, scaled down, so each choice visibly reads as selectable on e-ink. */
+    private static Drawable check(Context context) {
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_checked}, scaled(context, "main_btn_book_checked"));
+        states.addState(new int[0], scaled(context, "main_btn_book_unchecked"));
+        return states;
+    }
+
+    private static Drawable scaled(Context context, String name) {
+        Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(), resource(context, "drawable", name));
+        int size = dp(context, 26);
+        return new BitmapDrawable(context.getResources(), Bitmap.createScaledBitmap(bitmap, size, size, true));
     }
 
     private static EditText field(Context context, LinearLayout parent, String label, String value, int input) {
@@ -381,8 +539,8 @@ public final class Integration {
             tab = (TextView) view(temporary, "title_ridiselect");
             ((ViewGroup) tab.getParent()).removeView(tab);
             tab.setId(View.NO_ID);
-            tab.setText("WebDAV");
-            tab.setContentDescription("WebDAV 서버 서재");
+            tab.setText("클라우드");
+            tab.setContentDescription("클라우드 서재");
             tabs.addView(tab);
             panel = new LinearLayout(activity);
             panel.setOrientation(LinearLayout.VERTICAL);
@@ -437,7 +595,8 @@ public final class Integration {
         boolean visible() { return panel.getVisibility() == View.VISIBLE; }
 
         void show() {
-            if (prefs().getString("url", "").isEmpty()) {
+            panel.removeCallbacks(idle);
+            if (!rclone() && prefs().getString("url", "").isEmpty()) {
                 editSettings(activity, new Runnable() { public void run() { show(); } });
                 return;
             }
@@ -446,7 +605,7 @@ public final class Integration {
             pager.setVisibility(View.INVISIBLE);
             panel.setVisibility(View.VISIBLE);
             try {
-                root = DavClient.rootUrl(prefs().getString("url", ""));
+                root = DavClient.rootUrl(rclone() ? LOCAL : prefs().getString("url", ""));
                 load(folder != null && DavClient.inside(root, folder) ? folder : root);
             } catch (IOException error) { status.setText(error.getMessage()); }
         }
@@ -456,6 +615,7 @@ public final class Integration {
             pager.setVisibility(View.VISIBLE);
             tab.setSelected(false);
             if (stale) { stale = false; announce(); }
+            rest();
             try {
                 int current = (Integer) call(pager, "getCurrentItem", new Class<?>[0]);
                 for (int i = 0; i < tabs.getChildCount(); i++) tabs.getChildAt(i).setSelected(i == current);
@@ -469,7 +629,18 @@ public final class Integration {
         }
 
         DavClient newClient() throws IOException {
+            if (rclone()) return new DavClient(LOCAL, Rclone.USER, rclonePassword());
             return new DavClient(prefs().getString("url", ""), prefs().getString("user", ""), password());
+        }
+
+        /** rclone takes memory while it runs, so stop it a while after the tab is left with nothing downloading. */
+        final Runnable idle = new Runnable() {
+            public void run() { if (!visible() && queue.isEmpty()) Rclone.stop(app); }
+        };
+
+        void rest() {
+            panel.removeCallbacks(idle);
+            if (rclone() && !visible() && queue.isEmpty()) panel.postDelayed(idle, 3 * 60 * 1000);
         }
 
         void load(final HttpUrl target) {
@@ -486,6 +657,7 @@ public final class Integration {
             worker.execute(new Runnable() {
                 public void run() {
                     try {
+                        if (rclone()) Rclone.start(app, rclonePassword());
                         final List<DavClient.Entry> result = request.list(target);
                         activity.runOnUiThread(new Runnable() {
                             public void run() {
@@ -603,6 +775,7 @@ public final class Integration {
             String failure = null, detail = null;
             try {
                 DavClient request = newClient();
+                if (rclone()) Rclone.start(app, rclonePassword());
                 synchronized (queue) {
                     if (!queue.containsKey(url)) throw new InterruptedIOException(); // cancelled while waiting
                     downloader = request;
@@ -666,7 +839,10 @@ public final class Integration {
             if (detail != null) status.setText(detail);
             else if (!queue.isEmpty()) progress();
             else if (book != null) status.setText(errors.isEmpty() ? "다운로드를 마쳤습니다." : "받지 못한 책이 있습니다. 책을 눌러 다시 시도하세요.");
-            if (queue.isEmpty()) activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            if (queue.isEmpty()) {
+                activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                rest();
+            }
             if (book != null && url.equals(openWhenDone) && visible()) open(id);
         }
 

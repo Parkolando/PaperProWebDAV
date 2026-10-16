@@ -282,6 +282,26 @@ final class DavClient {
         }
     }
 
+    /** Downloads a public file, following redirects; used to install rclone. */
+    static void fetch(String url, File target, Progress progress) throws IOException {
+        Response response = secureClient().newBuilder().followRedirects(true).followSslRedirects(true).build()
+                .newCall(new Request.Builder().url(url).build()).execute();
+        try {
+            if (!response.isSuccessful() || response.body() == null) throw new IOException("내려받을 수 없습니다. (HTTP " + response.code() + ")");
+            long total = response.body().contentLength(), done = 0;
+            InputStream input = response.body().byteStream();
+            OutputStream output = new FileOutputStream(target);
+            try {
+                byte[] buffer = new byte[65536];
+                for (int count; (count = input.read(buffer)) != -1; ) {
+                    output.write(buffer, 0, count);
+                    done += count;
+                    if (progress != null) progress.update(done, total);
+                }
+            } finally { output.close(); }
+        } finally { response.close(); }
+    }
+
     static String key(String text) {
         try {
             byte[] bytes = MessageDigest.getInstance("SHA-256").digest(text.getBytes("UTF-8"));

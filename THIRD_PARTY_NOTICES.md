@@ -10,6 +10,18 @@
 
 Xposed Installer APK 안에는 Xposed 프레임워크(`app_process`, `XposedBridge.jar`)와 BusyBox가 들어 있어요. 원본의 고지문은 [`licenses/XposedInstaller-NOTICE.txt`](licenses/XposedInstaller-NOTICE.txt)에 그대로 옮겨 두었어요. 소스는 [rovo89/XposedInstaller](https://github.com/rovo89/XposedInstaller), [rovo89/XposedBridge](https://github.com/rovo89/XposedBridge), [rovo89/Xposed](https://github.com/rovo89/Xposed)에 있어요.
 
+## rclone (`rclone-1.75.2-android` 릴리스)
+
+| 파일 | 프로젝트 | 라이선스 | SHA-256 |
+| --- | --- | --- | --- |
+| `rclone-armv7.gz` | [rclone](https://github.com/rclone/rclone) v1.75.2 (Nick Craig-Wood 외) | MIT ([`licenses/rclone-COPYING.txt`](licenses/rclone-COPYING.txt)) | 압축 해제 후 `1af1b716636050316eab94db45728f9d2f822bc2f5069435a014348df51654e4` |
+
+[`rclone/`](rclone) 폴더의 소스로 빌드했어요. 원본과 다른 곳은 안드로이드에서 DNS 서버를 찾는 부분 하나예요. Go 표준 라이브러리가 함께 들어 있어요(BSD 라이선스, [`licenses/Go-LICENSE.txt`](licenses/Go-LICENSE.txt)). 모듈은 클라우드 설정에서 rclone을 고를 때 이 파일을 내려받아요.
+
+## QR 코드 생성기 (`src/io/nayuki/qrcodegen/`)
+
+[QR Code generator library](https://github.com/nayuki/QR-Code-generator) (Project Nayuki)의 Java 소스를 그대로 넣었어요. MIT 라이선스이고, 저작권 고지는 각 파일 머리에 있어요.
+
 ## 저장소의 `lib/` 폴더 (빌드 · 시험용)
 
 모듈 APK에는 들어가지 않고, 컴파일하거나 PC에서 시험할 때만 써요.
@@ -29,6 +41,8 @@ Xposed Installer APK 안에는 Xposed 프레임워크(`app_process`, `XposedBrid
 - [`licenses/XposedInstaller-NOTICE.txt`](licenses/XposedInstaller-NOTICE.txt): Xposed Installer의 고지문
 - [`licenses/XposedBridge-NOTICE.txt`](licenses/XposedBridge-NOTICE.txt): XposedBridge의 고지문
 - [`licenses/kxml2-license.txt`](licenses/kxml2-license.txt): kXML 2의 라이선스
+- [`licenses/rclone-COPYING.txt`](licenses/rclone-COPYING.txt): rclone의 라이선스
+- [`licenses/Go-LICENSE.txt`](licenses/Go-LICENSE.txt): Go의 라이선스
 
 ## 함께 올리지 않은 것
 
